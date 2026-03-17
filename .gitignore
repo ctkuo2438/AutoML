@@ -1,0 +1,14 @@
+.env
+.DS_Store
+
+.vscode/
+.idea/
+
+upload/
+__pycache__
+*.db
+uploads/
+test_*.html
+check_database.py
+*_GUIDE.md
+test_*.py
