@@ -174,20 +174,20 @@ class DataPreprocessor:
         elif strategy == 'fill_custom':
             if custom_value is None:
                 raise HTTPException(status_code=400, detail="custom_value is required for 'fill_custom' strategy")
-            
+
             # Fill missing values with custom value for columns that meet the threshold
             columns_filled = []
             for col in columns:
                 if col not in self.df.columns:
                     continue
-                
+
                 missing_ratio = self.df[col].isnull().sum() / len(self.df)
                 if missing_ratio >= missing_threshold:
                     missing_count = self.df[col].isnull().sum()
                     if missing_count > 0:
                         self.df[col].fillna(custom_value, inplace=True)
                         columns_filled.append(f"{col} ({missing_count} values)")
-            
+
             if columns_filled:
                 self.preprocessing_steps.append(
                     f"Filled missing values with '{custom_value}' in columns with missing ratio >= {missing_threshold}: {columns_filled}"
@@ -196,9 +196,39 @@ class DataPreprocessor:
                 self.preprocessing_steps.append(
                     f"No columns found with missing ratio >= {missing_threshold} for custom value filling"
                 )
-        
+
+        elif strategy in ('mean', 'median', 'mode'):
+            columns_filled = []
+            for col in columns:
+                if col not in self.df.columns:
+                    continue
+                missing_count = self.df[col].isnull().sum()
+                if missing_count == 0:
+                    continue
+                if strategy == 'mean' and pd.api.types.is_numeric_dtype(self.df[col]):
+                    fill_val = self.df[col].mean()
+                elif strategy == 'median' and pd.api.types.is_numeric_dtype(self.df[col]):
+                    fill_val = self.df[col].median()
+                elif strategy == 'mode':
+                    mode_vals = self.df[col].mode()
+                    fill_val = mode_vals.iloc[0] if not mode_vals.empty else None
+                else:
+                    continue
+                if fill_val is not None:
+                    self.df[col] = self.df[col].fillna(fill_val)
+                    columns_filled.append(f"{col} ({missing_count} values → {fill_val})")
+            self.preprocessing_steps.append(
+                f"Filled missing values with {strategy} in columns: {columns_filled or 'none needed'}"
+            )
+
+        elif strategy == 'drop':
+            original_rows = len(self.df)
+            self.df = self.df.dropna(subset=[c for c in columns if c in self.df.columns])
+            rows_removed = original_rows - len(self.df)
+            self.preprocessing_steps.append(f"Dropped {rows_removed} rows with missing values")
+
         else:
-            raise HTTPException(status_code=400, detail=f"Invalid strategy '{strategy}'. Use 'remove_column', 'remove_rows', or 'fill_custom'")
+            raise HTTPException(status_code=400, detail=f"Invalid strategy '{strategy}'. Use 'remove_column', 'remove_rows', 'fill_custom', 'mean', 'median', 'mode', or 'drop'")
         
         new_missing = self.df.isnull().sum().sum()
         new_shape = self.df.shape
@@ -499,6 +529,16 @@ def preprocess_data(file_id: str, db: Session,
         # Apply preprocessing steps based on configuration
         if preprocessing_config.get('handle_missing', False):
             missing_config = preprocessing_config.get('missing_config', {})
+
+            # Drop specific columns selected by the user
+            drop_columns = missing_config.get('drop_columns') or []
+            if drop_columns:
+                valid_drops = [c for c in drop_columns if c in preprocessor.df.columns]
+                if valid_drops:
+                    preprocessor.df = preprocessor.df.drop(columns=valid_drops)
+                    preprocessor.preprocessing_steps.append(f"Dropped columns: {valid_drops}")
+                    preprocessor._analyze_columns()
+
             preprocessor.handle_missing_values(
                 strategy=missing_config.get('strategy', 'remove_column'),
                 missing_threshold=missing_config.get('missing_threshold', 0.8),
@@ -530,16 +570,18 @@ def preprocess_data(file_id: str, db: Session,
         
         if preprocessing_config.get('remove_duplicates', False):
             preprocessor.remove_duplicates()
-        
+
         # Get final summary
         final_summary = preprocessor.get_data_summary()
-        
-        # Save processed data if requested
-        processed_filepath = None
-        if preprocessing_config.get('save_processed', False):
-            processed_filepath = preprocessor.save_processed_data(
-                preprocessing_config.get('output_filename')
-            )
+
+        # Always persist preprocessed data back to the original file so training sees it
+        from app.db.models.file_model import File
+        db_file = db.query(File).filter(File.id == file_id).first()
+        if db_file:
+            preprocessor.df.to_csv(str(db_file.filepath), index=False)
+            preprocessor.preprocessing_steps.append(f"Saved preprocessed data to: {db_file.filepath}")
+
+        processed_filepath = str(db_file.filepath) if db_file else None
         
         return {
             'success': True,

@@ -4,7 +4,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.endpoints import auth, csv_upload, data_preprocessing, training
+from app.api.endpoints import auth, csv_upload, data_preprocessing, inference, training
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
@@ -45,6 +45,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(csv_upload.router, prefix="/api/files", tags=["files"])
 app.include_router(data_preprocessing.router, prefix="/api/data", tags=["data-preprocessing"])
 app.include_router(training.router, prefix="/api/training", tags=["model-training"])
+app.include_router(inference.router, prefix="/api/inference", tags=["inference"])
 
 
 @app.get("/")

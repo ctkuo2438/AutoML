@@ -24,16 +24,17 @@ def load_csv(file_id: str, db: Session) -> pd.DataFrame:
 
     try:
         df = pd.read_csv(str(db_file.filepath))
-        if df.empty:
-            raise HTTPException(status_code=400, detail="CSV file is empty.")
-        return df
-
     except pd.errors.EmptyDataError:
         raise HTTPException(status_code=400, detail="CSV file is empty.")
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="CSV file not found.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error loading CSV file: {str(e)}")
+
+    if df.empty:
+        raise HTTPException(status_code=400, detail="CSV file is empty.")
+
+    return df
 
 
 def verify_file_ownership(file_id: str, user_id: int, db: Session) -> None:

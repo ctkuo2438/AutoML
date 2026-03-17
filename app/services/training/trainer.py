@@ -21,6 +21,8 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 from sqlalchemy.orm import Session
 
+from sklearn.preprocessing import LabelEncoder
+
 from app.core.config import settings
 from app.db.models.training_job_model import TrainingJob
 from app.services.data.load_csv import load_csv
@@ -60,6 +62,11 @@ class ModelTrainer:
 
         X = df.drop(columns=[self.target_column])
         y = df[self.target_column]
+
+        # Auto label-encode non-numeric feature columns
+        for col in X.select_dtypes(exclude=["number"]).columns:
+            X[col] = LabelEncoder().fit_transform(X[col].astype(str))
+
         return X, y
 
     def _validate_data(self, X, y):
@@ -67,14 +74,6 @@ class ModelTrainer:
             raise HTTPException(
                 status_code=400,
                 detail=f"Dataset too small: {len(X)} rows. Minimum 10 rows required.",
-            )
-
-        non_numeric = X.select_dtypes(exclude=["number"]).columns.tolist()
-        if non_numeric:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Non-numeric columns found: {non_numeric}. "
-                       "Please encode categorical variables before training.",
             )
 
         if X.isnull().any().any():
@@ -132,11 +131,21 @@ class ModelTrainer:
             "r2_score": float(r2_score(y_true, y_pred)),
         }
 
-    def _save_model(self, model, job_id: str) -> str:
+    def _save_model(self, model, job_id: str, feature_columns: List[str]) -> str:
         os.makedirs(settings.MODEL_DIR, exist_ok=True)
         filepath = os.path.join(settings.MODEL_DIR, f"{job_id}.joblib")
-        joblib.dump(model, filepath)
+        joblib.dump({"model": model, "feature_columns": feature_columns}, filepath)
         return filepath
+
+    @staticmethod
+    def load_model_artifact(filepath: str):
+        """Load a model artifact. Returns (model, feature_columns).
+        feature_columns is None for legacy artifacts saved before Phase 3."""
+        artifact = joblib.load(filepath)
+        if isinstance(artifact, dict) and "model" in artifact:
+            return artifact["model"], artifact.get("feature_columns")
+        # Legacy format: raw model object
+        return artifact, None
 
     def train(self) -> Dict[str, Any]:
         job = TrainingJob(
@@ -172,7 +181,7 @@ class ModelTrainer:
             else:
                 metrics = self._evaluate_regression(y_test, y_pred)
 
-            model_filepath = self._save_model(model, job.id)
+            model_filepath = self._save_model(model, job.id, X_train.columns.tolist())
             duration = time.time() - start_time
 
             job.metrics = json.dumps(metrics)

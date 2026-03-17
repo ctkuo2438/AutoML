@@ -1,14 +1,24 @@
+from typing import List
+
 from app.utils.file_upload_utils import save_uploaded_file
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
 from app.api.deps import get_db
-from app.schemas.file_validator import FileUploadResponse
+from app.db.models.file_model import File as FileModel
+from app.schemas.file_validator import File as FileSchema, FileUploadResponse
 from app.services.auth_service import verify_token
 
 router = APIRouter()
 
-# /upload is a route for uploading files
-# POST/upload is the endpoint for uploading files
+
+@router.get("/", response_model=List[FileSchema])
+async def list_files(
+    user_id: int = Depends(verify_token),
+    db: Session = Depends(get_db),
+):
+    return db.query(FileModel).filter(FileModel.user_id == user_id).all()
+
+
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
