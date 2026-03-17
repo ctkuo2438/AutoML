@@ -8,6 +8,7 @@ upload/
 __pycache__
 *.db
 uploads/
+models/
 test_*.html
 check_database.py
 *_GUIDE.md

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import csv_upload, auth, data_preprocessing
+from app.api.endpoints import csv_upload, auth, data_preprocessing, training
 from app.db.base import Base
 from app.core.config import settings
 from sqlalchemy import create_engine
@@ -24,12 +24,17 @@ app.add_middleware(
 Import all models to ensure they are registered with SQLAlchemy's metadata.
 This is necessary for SQLAlchemy to create the corresponding tables in the database.
 '''
+import os
 from app.db.models.file_model import File
 from app.db.models.user_model import User
+from app.db.models.training_job_model import TrainingJob
 # Create the database engine using the connection string from settings
 engine = create_engine(settings.DATABASE_URL)
 # Create all tables in the database (if they don't exist)
 Base.metadata.create_all(bind=engine)
+# Ensure required directories exist
+os.makedirs(settings.MODEL_DIR, exist_ok=True)
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
 app.include_router(
     auth.router,
@@ -47,6 +52,12 @@ app.include_router(
     data_preprocessing.router,
     prefix="/api/data",
     tags=["data-preprocessing"],
+)
+
+app.include_router(
+    training.router,
+    prefix="/api/training",
+    tags=["model-training"],
 )
 
 @app.get("/") # This is the root endpoint
