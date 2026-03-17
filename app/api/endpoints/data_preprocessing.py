@@ -3,7 +3,7 @@ from typing import Annotated, List, Literal, Optional
 from fastapi import APIRouter, Depends, Query
 from pydantic import Field
 
-from app.api.deps import get_preprocessor
+from app.api.preprocessing_deps import get_preprocessor
 from app.schemas.preprocessing_validator import (
     DataSummaryResponse,
     PreprocessingConfig,

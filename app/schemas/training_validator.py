@@ -38,8 +38,7 @@ class TrainingResponse(BaseModel):
     training_duration_seconds: Optional[float] = None
     message: str
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True, "protected_namespaces": ()}
 
 
 class TrainingJobListResponse(BaseModel):
