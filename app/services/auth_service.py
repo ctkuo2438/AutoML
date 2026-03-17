@@ -40,24 +40,30 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 
-def verify_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
-) -> int:
-    """Verify JWT token and return user_id"""
+def _authenticate(token: str, db: Session) -> User:
+    """Decode JWT and return the corresponding User. Raises 401 on any failure."""
     try:
-        token = credentials.credentials
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = int(payload.get("sub"))
-        if user_id is None:
-            logger.warning("verify_token: token missing 'sub' claim")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
     except jwt.PyJWTError as e:
-        logger.warning("verify_token: JWT decode failed: %s", e)
+        logger.warning("_authenticate: JWT decode failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    sub = payload.get("sub")
+    if not sub:
+        logger.warning("_authenticate: token missing 'sub' claim")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        user_id = int(sub)
+    except (ValueError, TypeError):
+        logger.warning("_authenticate: 'sub' claim is not a valid integer: %r", sub)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
@@ -66,21 +72,28 @@ def verify_token(
 
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
-        logger.warning("verify_token: user_id=%d from token not found in database", user_id)
+        logger.warning("_authenticate: user_id=%d from token not found in database", user_id)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    logger.debug("verify_token: user_id=%d authenticated", user_id)
-    return user_id
+    logger.debug("_authenticate: user_id=%d authenticated", user_id)
+    return user
+
+
+def verify_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> int:
+    """Verify JWT token and return user_id."""
+    return _authenticate(credentials.credentials, db).id
 
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
-    """Get current user from JWT token"""
-    user_id = verify_token(credentials, db)
-    return db.query(User).filter(User.id == user_id).first()
+    """Get current user from JWT token."""
+    return _authenticate(credentials.credentials, db)

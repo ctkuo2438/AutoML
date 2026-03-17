@@ -28,7 +28,7 @@ def _job_to_response(job: TrainingJob) -> TrainingResponse:
         algorithm=job.algorithm,
         status=job.status,
         metrics=metrics,
-        model_filepath=job.model_filepath,
+        model_available=bool(job.model_filepath and os.path.exists(job.model_filepath)),
         training_duration_seconds=job.training_duration_seconds,
         message=message,
     )

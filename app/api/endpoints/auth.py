@@ -1,7 +1,10 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
+
 from app.api.deps import get_db
 from app.db.models.user_model import User
 from app.schemas.user_validator import UserCreate, UserResponse, UserLogin
@@ -13,11 +16,13 @@ from app.services.auth_service import (
 )
 
 logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 
 @router.post("/register", response_model=UserResponse)
-async def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+async def register_user(request: Request, user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user"""
     existing_user = db.query(User).filter(User.username == user_data.username).first()
     if existing_user:
@@ -49,7 +54,8 @@ async def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-async def login_user(user_data: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def login_user(request: Request, user_data: UserLogin, db: Session = Depends(get_db)):
     """Login user and return JWT token"""
     user = db.query(User).filter(User.username == user_data.username).first()
     if not user or not verify_password(user_data.password, user.hashed_password):

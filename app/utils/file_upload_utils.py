@@ -1,57 +1,62 @@
+import logging
 import os
+import pathlib
+import re
 import uuid
+
 from fastapi import HTTPException, UploadFile
-from app.db.models.file_model import File
 from sqlalchemy.orm import Session
 
-def save_uploaded_file(file: UploadFile, user_id: int, db: Session) -> dict:
-    """
-    Save an uploaded file to the uploads/ folder and store its metadata to the SQLite database.
+from app.core.config import settings
+from app.db.models.file_model import File
 
-    Args:
-        file (UploadFile): The uploaded file object.
-        user_id (int): The ID of the user uploading the file.
-        db (Session): The database session.
+logger = logging.getLogger(__name__)
 
-    Returns:
-        dict: A dictionary containing the file ID, file path, filename, and a success message.
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
 
-    Raises:
-        HTTPException: If there is an error saving the file or storing its metadata.
-    """
+
+async def save_uploaded_file(file: UploadFile, user_id: int, db: Session) -> dict:
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed.")
-    
-    file_id = str(uuid.uuid4())  # Generate a unique ID for the file
-    file_path = f"uploads/{file_id}_{file.filename}"  # Create a unique file path
 
-    os.makedirs("uploads", exist_ok=True)  # Ensure the uploads directory exists
+    # Sanitize filename: strip directory components, allow only safe characters
+    safe_name = pathlib.Path(file.filename).name
+    safe_name = re.sub(r"[^\w.\-]", "_", safe_name)
+
+    contents = await file.read()
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds maximum allowed size of 100 MB.")
+
+    file_id = str(uuid.uuid4())
+    upload_root = pathlib.Path(settings.UPLOAD_DIR).resolve()
+    upload_root.mkdir(parents=True, exist_ok=True)
+    file_path = upload_root / f"{file_id}_{safe_name}"
 
     try:
-        with open(file_path, "wb") as f:
-            f.write(file.file.read())  # save the uploaded file to uploads directory
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
-    
-    # Store file metadata in the database
+        file_path.write_bytes(contents)
+    except Exception:
+        logger.exception("save_uploaded_file: failed to write file_id=%s", file_id)
+        raise HTTPException(status_code=500, detail="Error saving file.")
+
     try:
         db_file = File(
             id=file_id,
-            filename=file.filename,
-            filepath=file_path,
-            user_id=user_id
+            filename=safe_name,
+            filepath=str(file_path),
+            user_id=user_id,
         )
         db.add(db_file)
         db.commit()
         db.refresh(db_file)
-    except Exception as e:
+    except Exception:
+        logger.exception("save_uploaded_file: failed to save metadata for file_id=%s", file_id)
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to save file metadata: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save file metadata.")
 
-    # If everything is successful, return the file ID and file path
-    return {"file_id": file_id, 
-            "file_path": file_path,
-            "filename": file.filename,
-            "message": "File uploaded successfully."}
-
-
+    logger.info("save_uploaded_file: file_id=%s user_id=%d size=%d bytes", file_id, user_id, len(contents))
+    return {
+        "file_id": file_id,
+        "file_path": str(file_path),
+        "filename": safe_name,
+        "message": "File uploaded successfully.",
+    }

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import pathlib
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -8,8 +9,6 @@ from typing import Any, Dict, List, Optional
 import joblib
 import numpy as np
 from fastapi import HTTPException
-
-logger = logging.getLogger(__name__)
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import (
     accuracy_score,
@@ -22,18 +21,38 @@ from sklearn.metrics import (
     recall_score,
 )
 from sklearn.model_selection import train_test_split
-from sqlalchemy.orm import Session
-
 from sklearn.preprocessing import LabelEncoder
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.models.training_job_model import TrainingJob
 from app.services.data.load_csv import load_csv
 
+logger = logging.getLogger(__name__)
+
+MIN_TRAINING_ROWS = 10
+
 DEFAULT_HYPERPARAMETERS = {
     "lightgbm": {"n_estimators": 100, "learning_rate": 0.1, "max_depth": -1, "num_leaves": 31},
     "xgboost": {"n_estimators": 100, "learning_rate": 0.1, "max_depth": 6},
     "random_forest": {"n_estimators": 100, "max_depth": None, "min_samples_split": 2},
+}
+
+ALLOWED_HYPERPARAMETERS: Dict[str, set] = {
+    "lightgbm": {
+        "n_estimators", "learning_rate", "max_depth", "num_leaves",
+        "min_child_samples", "subsample", "colsample_bytree",
+        "reg_alpha", "reg_lambda", "random_state", "n_jobs",
+    },
+    "xgboost": {
+        "n_estimators", "learning_rate", "max_depth", "min_child_weight",
+        "subsample", "colsample_bytree", "reg_alpha", "reg_lambda",
+        "gamma", "random_state", "n_jobs",
+    },
+    "random_forest": {
+        "n_estimators", "max_depth", "min_samples_split", "min_samples_leaf",
+        "max_features", "bootstrap", "random_state", "n_jobs", "class_weight",
+    },
 }
 
 
@@ -72,11 +91,21 @@ class ModelTrainer:
 
         return X, y
 
-    def _validate_data(self, X, y):
-        if len(X) < 10:
+    def _validate_hyperparameters(self) -> None:
+        allowed = ALLOWED_HYPERPARAMETERS.get(self.algorithm, set())
+        unknown = set(self.hyperparameters) - allowed
+        if unknown:
             raise HTTPException(
                 status_code=400,
-                detail=f"Dataset too small: {len(X)} rows. Minimum 10 rows required.",
+                detail=f"Unknown hyperparameters for {self.algorithm}: {sorted(unknown)}. "
+                       f"Allowed: {sorted(allowed)}",
+            )
+
+    def _validate_data(self, X, y):
+        if len(X) < MIN_TRAINING_ROWS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dataset too small: {len(X)} rows. Minimum {MIN_TRAINING_ROWS} rows required.",
             )
 
         if X.isnull().any().any():
@@ -144,7 +173,13 @@ class ModelTrainer:
     def load_model_artifact(filepath: str):
         """Load a model artifact. Returns (model, feature_columns).
         feature_columns is None for legacy artifacts saved before Phase 3."""
-        artifact = joblib.load(filepath)
+        model_root = pathlib.Path(settings.MODEL_DIR).resolve()
+        safe_path = pathlib.Path(filepath).resolve()
+        try:
+            safe_path.relative_to(model_root)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid model path.")
+        artifact = joblib.load(safe_path)
         if isinstance(artifact, dict) and "model" in artifact:
             return artifact["model"], artifact.get("feature_columns")
         # Legacy format: raw model object
@@ -172,6 +207,7 @@ class ModelTrainer:
         )
         start_time = time.time()
         try:
+            self._validate_hyperparameters()
             X, y = self._load_and_prepare_data()
             self._validate_data(X, y)
 
@@ -210,7 +246,7 @@ class ModelTrainer:
                 "algorithm": self.algorithm,
                 "status": "completed",
                 "metrics": metrics,
-                "model_filepath": model_filepath,
+                "model_available": True,
                 "training_duration_seconds": duration,
                 "message": "Model trained successfully",
             }

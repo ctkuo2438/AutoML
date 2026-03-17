@@ -1,6 +1,7 @@
-from typing import List, Optional
+from typing import Annotated, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import Field
 
 from app.api.deps import get_preprocessor
 from app.schemas.preprocessing_validator import (
@@ -34,8 +35,10 @@ async def preprocess_csv_data(
 
 @router.post("/missing-values/{file_id}")
 async def handle_missing_values(
-    strategy: str = "remove_column",
-    missing_threshold: float = 0.8,
+    strategy: Literal[
+        "remove_column", "remove_rows", "fill_custom", "mean", "median", "mode", "drop"
+    ] = "remove_column",
+    missing_threshold: Annotated[float, Query(ge=0.0, le=1.0)] = 0.8,
     columns: Optional[List[str]] = None,
     custom_value: Optional[str] = None,
     preprocessor: DataPreprocessor = Depends(get_preprocessor),
@@ -61,9 +64,9 @@ async def handle_missing_values(
 
 @router.post("/outliers/{file_id}")
 async def handle_outliers(
-    method: str = "iqr",
+    method: Literal["iqr", "zscore", "clip", "valid_classes"] = "iqr",
     columns: Optional[List[str]] = Query(None),
-    threshold: float = 1.5,
+    threshold: Annotated[float, Query(ge=0.0)] = 1.5,
     valid_classes: Optional[List[str]] = Query(None),
     preprocessor: DataPreprocessor = Depends(get_preprocessor),
 ):
@@ -92,7 +95,7 @@ async def handle_outliers(
 
 @router.post("/encode/{file_id}")
 async def encode_categorical_variables(
-    method: str = "label",
+    method: Literal["label", "onehot"] = "label",
     columns: Optional[List[str]] = None,
     preprocessor: DataPreprocessor = Depends(get_preprocessor),
 ):
@@ -110,7 +113,7 @@ async def encode_categorical_variables(
 
 @router.post("/scale/{file_id}")
 async def scale_features(
-    method: str = "standard",
+    method: Literal["standard", "minmax"] = "standard",
     columns: Optional[List[str]] = None,
     preprocessor: DataPreprocessor = Depends(get_preprocessor),
 ):

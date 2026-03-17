@@ -34,7 +34,7 @@ class TrainingResponse(BaseModel):
     algorithm: str
     status: str
     metrics: Optional[Dict[str, Any]] = None
-    model_filepath: Optional[str] = None
+    model_available: bool = False
     training_duration_seconds: Optional[float] = None
     message: str
 

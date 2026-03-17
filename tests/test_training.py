@@ -385,7 +385,7 @@ def test_delete_training_job(client, auth_token):
         headers=auth_headers(auth_token),
     )
     job_id = train_resp.json()["job_id"]
-    model_path = train_resp.json()["model_filepath"]
+    assert train_resp.json()["model_available"] is True
 
     del_resp = client.delete(f"/api/training/jobs/{job_id}", headers=auth_headers(auth_token))
     assert del_resp.status_code == 200
@@ -394,5 +394,5 @@ def test_delete_training_job(client, auth_token):
     get_resp = client.get(f"/api/training/jobs/{job_id}", headers=auth_headers(auth_token))
     assert get_resp.status_code == 404
 
-    # Model file is gone from disk
-    assert not os.path.exists(model_path)
+    # model_available reflects deletion
+    assert del_resp.json()["model_available"] is False

@@ -1,10 +1,13 @@
-import warnings
+import logging
+import pathlib
+import re
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.services.data.handlers import (
     DuplicateRemover,
     EncoderHandler,
@@ -15,7 +18,7 @@ from app.services.data.handlers import (
 )
 from app.services.data.load_csv import load_csv
 
-warnings.filterwarnings("ignore")
+logger = logging.getLogger(__name__)
 
 
 class DataPreprocessor:
@@ -37,8 +40,11 @@ class DataPreprocessor:
             self.original_df = self.df.copy()
             self._analyze_columns()
             return self.df
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error loading data: {str(e)}")
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("load_data failed for file_id=%s", self.file_id)
+            raise HTTPException(status_code=500, detail="Error loading data.")
 
     def _analyze_columns(self) -> None:
         if self.df is None:
@@ -84,14 +90,20 @@ class DataPreprocessor:
     def save_processed_data(self, filename: Optional[str] = None) -> str:
         if self.df is None:
             raise HTTPException(status_code=400, detail="Data not loaded. Call load_data() first.")
-        filename = filename or f"processed_{self.file_id}.csv"
-        filepath = f"uploads/{filename}"
+        raw_name = filename or f"processed_{self.file_id}.csv"
+        # Strip directory components and sanitize characters
+        safe_name = pathlib.Path(raw_name).name
+        safe_name = re.sub(r"[^\w.\-]", "_", safe_name)
+        upload_root = pathlib.Path(settings.UPLOAD_DIR).resolve()
+        filepath = upload_root / safe_name
         try:
-            self.df.to_csv(filepath, index=False)
-            self.preprocessing_steps.append(f"Saved processed data to: {filepath}")
-            return filepath
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error saving processed data: {str(e)}")
+            upload_root.mkdir(parents=True, exist_ok=True)
+            self.df.to_csv(str(filepath), index=False)
+            self.preprocessing_steps.append(f"Saved processed data to: {safe_name}")
+            return str(filepath)
+        except Exception:
+            logger.exception("save_processed_data failed for file_id=%s", self.file_id)
+            raise HTTPException(status_code=500, detail="Error saving processed data.")
 
     def reset_data(self) -> pd.DataFrame:
         if self.original_df is None:
@@ -107,7 +119,8 @@ class DataPreprocessor:
 
     def _run(self, handler) -> pd.DataFrame:
         """Run a single handler, extend the step log, refresh column info."""
-        assert self.df is not None
+        if self.df is None:
+            raise HTTPException(status_code=400, detail="Data not loaded. Call load_data() first.")
         self.df, steps = handler.apply(self.df)
         self.preprocessing_steps.extend(steps)
         self._analyze_columns()
@@ -228,5 +241,8 @@ def preprocess_data(file_id: str, db: Session, preprocessing_config: Dict[str, A
             "message": "Data preprocessing completed successfully",
         }
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error in data preprocessing: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("preprocess_data failed for file_id=%s", file_id)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during preprocessing.")

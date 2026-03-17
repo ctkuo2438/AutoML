@@ -70,9 +70,10 @@ class ModelPredictor:
             )
 
     def _load_and_validate_input(self, feature_columns: List[str]):
-        df = load_csv(self.file_id, self.db)
+        """Returns (feature_df, original_df) — original_df for attaching predictions."""
+        original_df = load_csv(self.file_id, self.db)
 
-        missing = set(feature_columns) - set(df.columns)
+        missing = set(feature_columns) - set(original_df.columns)
         if missing:
             raise HTTPException(
                 status_code=400,
@@ -81,9 +82,9 @@ class ModelPredictor:
             )
 
         # Select only the required columns in training order (extra columns ignored)
-        df = df[feature_columns]
+        feature_df = original_df[feature_columns]
 
-        non_numeric = df.select_dtypes(exclude=["number"]).columns.tolist()
+        non_numeric = feature_df.select_dtypes(exclude=["number"]).columns.tolist()
         if non_numeric:
             raise HTTPException(
                 status_code=400,
@@ -91,15 +92,15 @@ class ModelPredictor:
                        "Please encode categorical variables before inference.",
             )
 
-        if df.isnull().any().any():
-            cols_with_nan = df.columns[df.isnull().any()].tolist()
+        if feature_df.isnull().any().any():
+            cols_with_nan = feature_df.columns[feature_df.isnull().any()].tolist()
             raise HTTPException(
                 status_code=400,
                 detail=f"Missing values found in columns: {cols_with_nan}. "
                        "Please handle missing values before inference.",
             )
 
-        return df
+        return feature_df, original_df
 
     def predict(self) -> Dict[str, Any]:
         logger.info(
@@ -109,7 +110,7 @@ class ModelPredictor:
         job = self._load_training_job()
         model, _ = ModelTrainer.load_model_artifact(job.model_filepath)
         feature_columns = self._resolve_feature_columns(job, model)
-        input_df = self._load_and_validate_input(feature_columns)
+        input_df, original_df = self._load_and_validate_input(feature_columns)
 
         raw_preds = model.predict(input_df)
 
@@ -118,7 +119,7 @@ class ModelPredictor:
         else:
             predictions = [float(p) for p in raw_preds]
 
-        original_rows = load_csv(self.file_id, self.db).to_dict(orient="records")
+        original_rows = original_df.to_dict(orient="records")
         data_with_predictions = [
             {**row, "prediction": pred}
             for row, pred in zip(original_rows, predictions)

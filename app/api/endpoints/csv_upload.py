@@ -39,8 +39,5 @@ async def upload_file(
     Raises:
         HTTPException: If the file is invalid or an error occurs during processing.
     """
-    try:
-        result = save_uploaded_file(file, user_id, db)
-        return FileUploadResponse(**result) # ** means unpacking the dictionary into keyword arguments
-    except HTTPException as e:
-        raise e
+    result = await save_uploaded_file(file, user_id, db)
+    return FileUploadResponse(**result)

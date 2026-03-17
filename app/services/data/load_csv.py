@@ -35,9 +35,9 @@ def load_csv(file_id: str, db: Session) -> pd.DataFrame:
     except FileNotFoundError:
         logger.error("load_csv: file_id=%s path=%s not found on disk", file_id, db_file.filepath)
         raise HTTPException(status_code=404, detail="CSV file not found.")
-    except Exception as e:
+    except Exception:
         logger.exception("load_csv: unexpected error reading file_id=%s", file_id)
-        raise HTTPException(status_code=500, detail=f"Error loading CSV file: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error loading CSV file.")
 
     if df.empty:
         logger.warning("load_csv: file_id=%s loaded but DataFrame is empty", file_id)

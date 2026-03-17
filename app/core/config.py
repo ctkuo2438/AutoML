@@ -15,15 +15,15 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_secret_key(self) -> "Settings":
-        if self.SECRET_KEY == "changeme":
+        weak = self.SECRET_KEY == "changeme" or len(self.SECRET_KEY) < 32
+        if weak:
             if self.ENV == "production":
                 raise ValueError(
-                    "SECRET_KEY must be changed from the default value in production. "
-                    "Set a strong SECRET_KEY environment variable."
+                    "SECRET_KEY must be at least 32 characters and not the default value. "
+                    "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
                 )
             logging.warning(
-                "SECRET_KEY is using the default value. "
-                "Set a strong SECRET_KEY environment variable in production."
+                "SECRET_KEY is weak or default. Set a strong SECRET_KEY before deploying to production."
             )
         return self
 
