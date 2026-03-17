@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from app.api.deps import get_db
 from app.services.auth_service import verify_token
+from app.services.data.load_csv import verify_file_ownership
 from app.services.data.preprocess import DataPreprocessor, preprocess_data
 
 router = APIRouter()
@@ -59,10 +60,11 @@ async def get_data_summary(
         DataSummaryResponse: Summary information about the dataset
     """
     try:
+        verify_file_ownership(file_id, user_id, db)
         # Initialize preprocessor and load data
         preprocessor = DataPreprocessor(file_id, db)
         preprocessor.load_data()
-        
+
         # Get data summary
         summary = preprocessor.get_data_summary()
         
@@ -98,9 +100,10 @@ async def preprocess_csv_data(
         PreprocessingResponse: Results of preprocessing operations
     """
     try:
+        verify_file_ownership(file_id, user_id, db)
         # Convert Pydantic model to dict
         preprocessing_config = config.dict()
-        
+
         # Perform preprocessing
         result = preprocess_data(file_id, db, preprocessing_config)
         
@@ -140,9 +143,10 @@ async def handle_missing_values(
         Dict: Results of missing value handling
     """
     try:
+        verify_file_ownership(file_id, user_id, db)
         preprocessor = DataPreprocessor(file_id, db)
         preprocessor.load_data()
-        
+
         # Handle missing values
         preprocessor.handle_missing_values(
             strategy=strategy, 
@@ -199,9 +203,10 @@ async def handle_outliers(
         Dict: Results of outlier handling
     """
     try:
+        verify_file_ownership(file_id, user_id, db)
         preprocessor = DataPreprocessor(file_id, db)
         preprocessor.load_data()
-        
+
         # Convert valid_classes from strings to appropriate types if needed
         processed_valid_classes = None
         if valid_classes is not None:
@@ -266,9 +271,10 @@ async def encode_categorical_variables(
         Dict: Results of categorical encoding
     """
     try:
+        verify_file_ownership(file_id, user_id, db)
         preprocessor = DataPreprocessor(file_id, db)
         preprocessor.load_data()
-        
+
         # Encode categorical variables
         preprocessor.encode_categorical_variables(columns=columns, method=method)
         
@@ -312,9 +318,10 @@ async def scale_features(
         Dict: Results of feature scaling
     """
     try:
+        verify_file_ownership(file_id, user_id, db)
         preprocessor = DataPreprocessor(file_id, db)
         preprocessor.load_data()
-        
+
         # Scale features
         preprocessor.scale_features(columns=columns, method=method)
         
@@ -354,9 +361,10 @@ async def remove_duplicates(
         Dict: Results of duplicate removal
     """
     try:
+        verify_file_ownership(file_id, user_id, db)
         preprocessor = DataPreprocessor(file_id, db)
         preprocessor.load_data()
-        
+
         # Remove duplicates
         preprocessor.remove_duplicates()
         
@@ -396,9 +404,10 @@ async def save_processed_data(
         Dict: Results of saving processed data
     """
     try:
+        verify_file_ownership(file_id, user_id, db)
         preprocessor = DataPreprocessor(file_id, db)
         preprocessor.load_data()
-        
+
         # Save processed data
         filepath = preprocessor.save_processed_data(filename=filename)
         
@@ -432,9 +441,10 @@ async def reset_data(
         Dict: Results of data reset
     """
     try:
+        verify_file_ownership(file_id, user_id, db)
         preprocessor = DataPreprocessor(file_id, db)
         preprocessor.load_data()
-        
+
         # Reset data
         preprocessor.reset_data()
         

@@ -11,4 +11,4 @@ uploads/
 test_*.html
 check_database.py
 *_GUIDE.md
-test_*.py
+/test_*.py

@@ -1,0 +1,9 @@
+age,salary,department,promoted
+25,50000,Engineering,Yes
+30,60000,Marketing,No
+35,70000,Engineering,Yes
+40,80000,HR,No
+28,55000,Engineering,Yes
+32,65000,Marketing,No
+45,90000,HR,Yes
+22,45000,Engineering,No
