@@ -66,6 +66,7 @@ class ModelTrainer:
         self.test_size = config.get("test_size", 0.2)
         self.random_state = config.get("random_state", 42)
         self.hyperparameters = config.get("hyperparameters") or {}
+        self.experiment_name = config.get("experiment_name")
         self.db = db
         self.X_train = None
         self.X_test = None
@@ -189,6 +190,7 @@ class ModelTrainer:
         job = TrainingJob(
             file_id=self.file_id,
             user_id=self.user_id,
+            experiment_name=self.experiment_name,
             task_type=self.task_type,
             target_column=self.target_column,
             algorithm=self.algorithm,

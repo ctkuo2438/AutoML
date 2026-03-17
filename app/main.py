@@ -44,6 +44,17 @@ from app.db.models.user_model import User  # noqa: F401, E402
 
 Base.metadata.create_all(bind=engine)
 
+# Migrate existing databases: add experiment_name column if absent
+with engine.connect() as _conn:
+    try:
+        _conn.execute(__import__("sqlalchemy").text(
+            "ALTER TABLE training_jobs ADD COLUMN experiment_name VARCHAR"
+        ))
+        _conn.commit()
+        logger.info("Migration: added experiment_name column to training_jobs")
+    except Exception:
+        pass  # Column already exists
+
 os.makedirs(settings.MODEL_DIR, exist_ok=True)
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 

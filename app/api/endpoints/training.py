@@ -24,6 +24,7 @@ def _job_to_response(job: TrainingJob) -> TrainingResponse:
     return TrainingResponse(
         job_id=job.id,
         file_id=job.file_id,
+        experiment_name=job.experiment_name,
         task_type=job.task_type,
         algorithm=job.algorithm,
         status=job.status,

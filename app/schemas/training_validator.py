@@ -7,6 +7,7 @@ class TrainingRequest(BaseModel):
     target_column: str
     task_type: Literal["classification", "regression"]
     algorithm: Literal["lightgbm", "xgboost", "random_forest"]
+    experiment_name: Optional[str] = None
     hyperparameters: Optional[Dict[str, Any]] = None
     test_size: float = Field(default=0.2, ge=0.05, le=0.5)
     random_state: int = 42
@@ -30,6 +31,7 @@ class RegressionMetrics(BaseModel):
 class TrainingResponse(BaseModel):
     job_id: str
     file_id: str
+    experiment_name: Optional[str] = None
     task_type: str
     algorithm: str
     status: str

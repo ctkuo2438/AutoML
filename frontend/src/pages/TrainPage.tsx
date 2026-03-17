@@ -6,6 +6,7 @@ export default function TrainPage() {
   const { fileId } = useParams<{ fileId: string }>();
   const navigate = useNavigate();
   const [columns, setColumns] = useState<string[]>([]);
+  const [experimentName, setExperimentName] = useState('');
   const [targetColumn, setTargetColumn] = useState('');
   const [taskType, setTaskType] = useState<'classification' | 'regression'>('classification');
   const [algorithm, setAlgorithm] = useState('random_forest');
@@ -35,6 +36,7 @@ export default function TrainPage() {
         target_column: targetColumn,
         task_type: taskType,
         algorithm,
+        experiment_name: experimentName.trim() || undefined,
       });
       navigate(`/metrics/${res.data.job_id}`);
     } catch (err: any) {
@@ -50,6 +52,19 @@ export default function TrainPage() {
         <h1 className="text-2xl font-bold text-gray-800 mb-6">Configure Training</h1>
 
         <div className="bg-white rounded-lg shadow p-6 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Experiment name <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={experimentName}
+              onChange={(e) => setExperimentName(e.target.value)}
+              placeholder="e.g. Diabetes, Titanic"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Target column

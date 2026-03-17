@@ -11,6 +11,7 @@ class TrainingJob(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     file_id = Column(String, ForeignKey("files.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    experiment_name = Column(String, nullable=True)
     task_type = Column(String, nullable=False)
     target_column = Column(String, nullable=False)
     algorithm = Column(String, nullable=False)

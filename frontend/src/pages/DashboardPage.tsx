@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 interface TrainingResponse {
   job_id: string;
   file_id: string;
+  experiment_name?: string;
   target_column?: string;
   task_type: string;
   algorithm: string;
@@ -71,6 +72,7 @@ export default function DashboardPage() {
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
                 <tr>
+                  <th className="px-4 py-3">Experiment</th>
                   <th className="px-4 py-3">Algorithm</th>
                   <th className="px-4 py-3">Task</th>
                   <th className="px-4 py-3">Status</th>
@@ -86,7 +88,10 @@ export default function DashboardPage() {
                     : (m.rmse != null ? `RMSE: ${m.rmse.toFixed(3)}` : '—');
                   return (
                     <tr key={job.job_id} className="border-t border-gray-100 hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium capitalize">
+                      <td className="px-4 py-3 font-medium">
+                        {job.experiment_name || <span className="text-gray-400 italic">—</span>}
+                      </td>
+                      <td className="px-4 py-3 capitalize">
                         {job.algorithm.replace('_', ' ')}
                       </td>
                       <td className="px-4 py-3 capitalize">{job.task_type}</td>
