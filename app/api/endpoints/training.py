@@ -53,13 +53,19 @@ async def train_model(
 @router.get("/jobs", response_model=TrainingJobListResponse)
 async def list_training_jobs(
     file_id: str = None,
+    page: int = 1,
+    page_size: int = 20,
     user_id: int = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
+    if page < 1:
+        page = 1
+    if page_size < 1 or page_size > 100:
+        page_size = 20
     query = db.query(TrainingJob).filter(TrainingJob.user_id == user_id)
     if file_id:
         query = query.filter(TrainingJob.file_id == file_id)
-    jobs = query.order_by(TrainingJob.created_at.desc()).all()
+    jobs = query.order_by(TrainingJob.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
     return TrainingJobListResponse(jobs=[_job_to_response(j) for j in jobs])
 
 

@@ -250,11 +250,11 @@ def test_train_file_ownership_enforced(client, auth_token):
 
     client.post(
         "/api/auth/register",
-        json={"username": "other_trainer", "email": "trainer2@example.com", "password": "pass123"},
+        json={"username": "other_trainer", "email": "trainer2@example.com", "password": "password123"},
     )
     other_token = client.post(
         "/api/auth/login",
-        json={"username": "other_trainer", "password": "pass123"},
+        json={"username": "other_trainer", "password": "password123"},
     ).json()["access_token"]
 
     resp = client.post(
@@ -361,11 +361,11 @@ def test_get_training_job_other_user_forbidden(client, auth_token):
 
     client.post(
         "/api/auth/register",
-        json={"username": "snoop", "email": "snoop@example.com", "password": "pass123"},
+        json={"username": "snoop", "email": "snoop@example.com", "password": "password123"},
     )
     other_token = client.post(
         "/api/auth/login",
-        json={"username": "snoop", "password": "pass123"},
+        json={"username": "snoop", "password": "password123"},
     ).json()["access_token"]
 
     resp = client.get(f"/api/training/jobs/{job_id}", headers=auth_headers(other_token))

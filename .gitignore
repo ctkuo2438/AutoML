@@ -7,6 +7,8 @@
 upload/
 __pycache__
 *.db
+.coverage
+htmlcov/
 uploads/
 models/
 test_*.html

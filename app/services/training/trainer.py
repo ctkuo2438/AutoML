@@ -202,9 +202,11 @@ class ModelTrainer:
             self.db.commit()
             raise e
         except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception("Unexpected training error for job %s", job.id)
             duration = time.time() - start_time
             job.status = "failed"
             job.error_message = str(e)
             job.training_duration_seconds = duration
             self.db.commit()
-            raise HTTPException(status_code=500, detail=f"Training failed: {e}")
+            raise HTTPException(status_code=500, detail="An unexpected error occurred during training.")

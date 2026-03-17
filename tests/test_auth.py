@@ -12,11 +12,11 @@ def test_register_user(client):
 
 
 def test_register_duplicate_username(client):
-    payload = {"username": "bob", "email": "bob@example.com", "password": "pass123"}
+    payload = {"username": "bob", "email": "bob@example.com", "password": "password123"}
     client.post("/api/auth/register", json=payload)
     response = client.post(
         "/api/auth/register",
-        json={"username": "bob", "email": "bob2@example.com", "password": "pass123"},
+        json={"username": "bob", "email": "bob2@example.com", "password": "password123"},
     )
     assert response.status_code == 400
     assert "Username already registered" in response.json()["detail"]
@@ -25,14 +25,30 @@ def test_register_duplicate_username(client):
 def test_register_duplicate_email(client):
     client.post(
         "/api/auth/register",
-        json={"username": "carol", "email": "shared@example.com", "password": "pass123"},
+        json={"username": "carol", "email": "shared@example.com", "password": "password123"},
     )
     response = client.post(
         "/api/auth/register",
-        json={"username": "carol2", "email": "shared@example.com", "password": "pass123"},
+        json={"username": "carol2", "email": "shared@example.com", "password": "password123"},
     )
     assert response.status_code == 400
     assert "Email already registered" in response.json()["detail"]
+
+
+def test_register_invalid_email(client):
+    response = client.post(
+        "/api/auth/register",
+        json={"username": "baduser", "email": "not-an-email", "password": "password123"},
+    )
+    assert response.status_code == 422
+
+
+def test_register_password_too_short(client):
+    response = client.post(
+        "/api/auth/register",
+        json={"username": "baduser", "email": "valid@example.com", "password": "short"},
+    )
+    assert response.status_code == 422
 
 
 def test_login_valid_credentials(client):
@@ -53,7 +69,7 @@ def test_login_valid_credentials(client):
 def test_login_wrong_password(client):
     client.post(
         "/api/auth/register",
-        json={"username": "dave", "email": "dave@example.com", "password": "correct"},
+        json={"username": "dave", "email": "dave@example.com", "password": "correctpassword"},
     )
     response = client.post(
         "/api/auth/login",

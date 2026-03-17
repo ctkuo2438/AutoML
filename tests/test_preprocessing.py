@@ -45,11 +45,11 @@ def test_get_summary_other_user_file(client, db_setup, uploaded_file_id):
     # Register a second user
     client.post(
         "/api/auth/register",
-        json={"username": "other", "email": "other@example.com", "password": "pass123"},
+        json={"username": "other", "email": "other@example.com", "password": "password123"},
     )
     login_resp = client.post(
         "/api/auth/login",
-        json={"username": "other", "password": "pass123"},
+        json={"username": "other", "password": "password123"},
     )
     other_token = login_resp.json()["access_token"]
 
