@@ -7,8 +7,12 @@ export default function PreprocessPage() {
   const navigate = useNavigate();
   const [columns, setColumns] = useState<string[]>([]);
   const [dropColumns, setDropColumns] = useState<string[]>([]);
-  const [fillMissing, setFillMissing] = useState<'mean' | 'median' | 'mode' | 'drop'>('mean');
+  type MissingStrategy = 'remove_column' | 'remove_rows' | 'fill_custom' | 'mean' | 'median' | 'mode' | 'drop';
+  type ScalingMethod = 'standard' | 'minmax';
+
+  const [fillMissing, setFillMissing] = useState<MissingStrategy>('mean');
   const [normalize, setNormalize] = useState(false);
+  const [scalingMethod, setScalingMethod] = useState<ScalingMethod>('standard');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -29,10 +33,10 @@ export default function PreprocessPage() {
     setError('');
     try {
       await api.post(`/api/data/preprocess/${fileId}`, {
-        handle_missing: dropColumns.length > 0 || fillMissing !== 'mean',
+        handle_missing: dropColumns.length > 0 || true,
         missing_config: { strategy: fillMissing, drop_columns: dropColumns },
         scale_features: normalize,
-        scaling_config: normalize ? { method: 'minmax' } : undefined,
+        scaling_config: normalize ? { method: scalingMethod } : undefined,
       });
       navigate(`/train/${fileId}`);
     } catch (err: any) {
@@ -70,27 +74,40 @@ export default function PreprocessPage() {
           <h2 className="font-semibold text-gray-700 mb-3">Handle missing values</h2>
           <select
             value={fillMissing}
-            onChange={(e) => setFillMissing(e.target.value as typeof fillMissing)}
+            onChange={(e) => setFillMissing(e.target.value as MissingStrategy)}
             className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="mean">Fill with mean</option>
             <option value="median">Fill with median</option>
             <option value="mode">Fill with mode</option>
             <option value="drop">Drop rows with missing values</option>
+            <option value="remove_column">Remove columns above missing threshold</option>
+            <option value="remove_rows">Remove rows above missing threshold</option>
+            <option value="fill_custom">Fill with custom value</option>
           </select>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="font-semibold text-gray-700 mb-3">Normalize features</h2>
-          <label className="flex items-center gap-2 cursor-pointer">
+          <h2 className="font-semibold text-gray-700 mb-3">Scale features</h2>
+          <label className="flex items-center gap-2 cursor-pointer mb-3">
             <input
               type="checkbox"
               checked={normalize}
               onChange={(e) => setNormalize(e.target.checked)}
               className="w-4 h-4 accent-indigo-600"
             />
-            <span className="text-sm text-gray-600">Apply min-max normalization</span>
+            <span className="text-sm text-gray-600">Apply feature scaling</span>
           </label>
+          {normalize && (
+            <select
+              value={scalingMethod}
+              onChange={(e) => setScalingMethod(e.target.value as ScalingMethod)}
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="standard">Standard (z-score)</option>
+              <option value="minmax">Min-Max (0–1)</option>
+            </select>
+          )}
         </div>
 
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}

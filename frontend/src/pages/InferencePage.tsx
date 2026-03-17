@@ -21,8 +21,11 @@ export default function InferencePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB
+
   const handleFile = (f: File) => {
     if (!f.name.endsWith('.csv')) { setError('Only CSV files supported.'); return; }
+    if (f.size > MAX_FILE_BYTES) { setError('File exceeds the 100 MB limit.'); return; }
     setFile(f);
     setError('');
     setResult(null);
