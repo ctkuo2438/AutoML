@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import time
 from datetime import datetime, timezone
@@ -7,6 +8,8 @@ from typing import Any, Dict, List, Optional
 import joblib
 import numpy as np
 from fastapi import HTTPException
+
+logger = logging.getLogger(__name__)
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import (
     accuracy_score,
@@ -163,6 +166,10 @@ class ModelTrainer:
         self.db.commit()
         self.db.refresh(job)
 
+        logger.info(
+            "training start: job_id=%s file_id=%s algorithm=%s task_type=%s",
+            job.id, self.file_id, self.algorithm, self.task_type,
+        )
         start_time = time.time()
         try:
             X, y = self._load_and_prepare_data()
@@ -191,6 +198,11 @@ class ModelTrainer:
             job.completed_at = datetime.now(timezone.utc)
             self.db.commit()
 
+            logger.info(
+                "training complete: job_id=%s algorithm=%s duration=%.2fs metrics=%s",
+                job.id, self.algorithm, duration,
+                {k: round(v, 4) for k, v in metrics.items() if isinstance(v, float)},
+            )
             return {
                 "job_id": job.id,
                 "file_id": self.file_id,
@@ -209,13 +221,16 @@ class ModelTrainer:
             job.error_message = e.detail
             job.training_duration_seconds = duration
             self.db.commit()
+            logger.warning(
+                "training failed: job_id=%s status=%d detail=%s duration=%.2fs",
+                job.id, e.status_code, e.detail, duration,
+            )
             raise e
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).exception("Unexpected training error for job %s", job.id)
             duration = time.time() - start_time
             job.status = "failed"
             job.error_message = str(e)
             job.training_duration_seconds = duration
             self.db.commit()
+            logger.exception("training error: job_id=%s duration=%.2fs", job.id, duration)
             raise HTTPException(status_code=500, detail="An unexpected error occurred during training.")

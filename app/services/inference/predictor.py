@@ -22,15 +22,26 @@ class ModelPredictor:
     def _load_training_job(self) -> TrainingJob:
         job = self.db.query(TrainingJob).filter(TrainingJob.id == self.job_id).first()
         if not job:
+            logger.warning("predict: job_id=%s not found", self.job_id)
             raise HTTPException(status_code=404, detail="Training job not found.")
         if job.user_id != self.user_id:
+            logger.warning(
+                "predict: user_id=%d denied access to job_id=%s", self.user_id, self.job_id
+            )
             raise HTTPException(status_code=403, detail="Access denied.")
         if job.status != "completed":
+            logger.warning(
+                "predict: job_id=%s not usable, status=%s", self.job_id, job.status
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Model is not available. Job status: '{job.status}'.",
             )
         if not job.model_filepath or not os.path.exists(job.model_filepath):
+            logger.error(
+                "predict: job_id=%s model artifact missing at path=%s",
+                self.job_id, job.model_filepath,
+            )
             raise HTTPException(
                 status_code=404,
                 detail="Model artifact not found on disk. Please retrain.",
@@ -91,6 +102,10 @@ class ModelPredictor:
         return df
 
     def predict(self) -> Dict[str, Any]:
+        logger.info(
+            "predict start: job_id=%s file_id=%s user_id=%d",
+            self.job_id, self.file_id, self.user_id,
+        )
         job = self._load_training_job()
         model, _ = ModelTrainer.load_model_artifact(job.model_filepath)
         feature_columns = self._resolve_feature_columns(job, model)
@@ -109,6 +124,10 @@ class ModelPredictor:
             for row, pred in zip(original_rows, predictions)
         ]
 
+        logger.info(
+            "predict complete: job_id=%s algorithm=%s task_type=%s num_rows=%d",
+            self.job_id, job.algorithm, job.task_type, len(predictions),
+        )
         return {
             "job_id": self.job_id,
             "task_type": job.task_type,

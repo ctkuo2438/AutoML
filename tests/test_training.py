@@ -195,7 +195,7 @@ def test_train_missing_target_column(client, auth_token):
 
 
 def test_train_non_numeric_features(client, auth_token):
-    """has_categorical.csv has a 'dept' string column — should fail validation."""
+    """has_categorical.csv has a 'dept' string column — auto label-encoded before training."""
     file_id = upload_file(client, auth_token, "has_categorical.csv")
     resp = client.post(
         "/api/training/train",
@@ -207,8 +207,8 @@ def test_train_non_numeric_features(client, auth_token):
         },
         headers=auth_headers(auth_token),
     )
-    assert resp.status_code == 400
-    assert "Non-numeric" in resp.json()["detail"]
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "completed"
 
 
 def test_train_invalid_task_type(client, auth_token):
